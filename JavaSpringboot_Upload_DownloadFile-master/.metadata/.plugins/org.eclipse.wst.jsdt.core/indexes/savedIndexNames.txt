@@ -1,7 +1,0 @@
-INDEX VERSION 1.4+D:\atlas file handling demo\JavaSpringboot_Upload_DownloadFile-master\.metadata\.plugins\org.eclipse.wst.jsdt.core\indexes
-2175527319.index
-809697073.index
-2201730819.index
-1297014317.index
-3717608028.index
-25599082.index
