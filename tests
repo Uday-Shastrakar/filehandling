@@ -1,136 +1,147 @@
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.mockito.InjectMocks
+import org.mockito.Mock
+import org.mockito.junit.jupiter.MockitoExtension
+import org.springframework.mock.web.MockMultipartFile
+import org.springframework.web.multipart.MultipartFile
+import java.io.IOException
+import java.nio.file.FileAlreadyExistsException
+import java.nio.file.FileSystems
+import java.nio.file.Files
+import java.nio.file.Path
+import java.time.LocalDate
+import java.util.*
+import javax.servlet.http.HttpServletRequest
+import org.junit.jupiter.api.Assertions.*
+import org.mockito.Mockito.`when` as mockWhen
+
+@ExtendWith(MockitoExtension::class)
 class ClientDocumentsServiceTest {
 
+    @Mock
+    private lateinit var fileStorageProperties: FileStorageProperties
+
+    @Mock
+    private lateinit var repository: ClientDocuementRepository
+
+    @Mock
+    private lateinit var masterServiceClient: MasterServiceClient
+
     @InjectMocks
-    private ClientDocumentsService clientDocumentsService;
+    private lateinit var clientDocumentsService: ClientDocumentsService
 
-    @Mock
-    private FileStorageProperties fileStorageProperties;
+    @Test
+    fun storeFile_ValidFile_Success() {
+        // Arrange
+        val file: MultipartFile = MockMultipartFile("test.txt", "Test file content".toByteArray())
 
-    @Mock
-    private ClientDocuementRepository repository;
+        // Act
+        val fileName = clientDocumentsService.storeFile(file)
 
-    @Mock
-    private MasterServiceClient masterServiceClient;
-
-    @Mock
-    private HttpServletRequest request;
-
-    @Mock
-    private MultipartFile multipartFile;
-
-    @BeforeEach
-    void setUp() {
-        MockitoAnnotations.initMocks(this);
-        // Mock any necessary behaviors for fileStorageProperties, repository, masterServiceClient, and request
+        // Assert
+        assertNotNull(fileName)
+        assertEquals("test.txt", fileName)
     }
 
     @Test
-    void testStoreFile() {
-        // Mock necessary behavior for fileStorageProperties
-        when(fileStorageProperties.getUploadDir()).thenReturn("/path/to/upload/dir");
+    fun storeFile_InvalidFileName_ExceptionThrown() {
+        // Arrange
+        val file: MultipartFile = MockMultipartFile("test.invalid.txt", "Test file content".toByteArray())
 
-        // Mock necessary behavior for MultipartFile
-        when(multipartFile.getOriginalFilename()).thenReturn("test.txt");
-        when(multipartFile.getInputStream()).thenReturn(/* Provide an InputStream for test file content */);
-
-        // Test storeFile method
-        String fileName = clientDocumentsService.storeFile(multipartFile);
-        assertNotNull(fileName);
-        assertEquals("test.txt", fileName);
+        // Act & Assert
+        assertThrows(FileStorageException::class.java) { clientDocumentsService.storeFile(file) }
     }
 
     @Test
-    void testDownloadFile() {
-        // Mock necessary behavior for repository
-        long documentId = 1L;
-        ClientDocument clientDocument = new ClientDocument();
-        clientDocument.setFileName("test.txt");
-        when(repository.findById(documentId)).thenReturn(Optional.of(clientDocument));
+    fun downloadFile_ValidId_Success() {
+        // Arrange
+        val id: Long = 1L
+        val request = mock(HttpServletRequest::class.java)
+        val data = ClientDocument()
+        data.fileName = "test.txt"
+        mockWhen(repository.findById(id)).thenReturn(Optional.of(data))
 
-        // Mock necessary behavior for LoadFileAsResource
-        Resource resource = /* Create a mock Resource */;
-        when(clientDocumentsService.loadFileAsResource(clientDocument.getFileName())).thenReturn(resource);
+        // Act
+        val response = clientDocumentsService.downloadFile(id, request)
 
-        // Test downloadFile method
-        ResponseEntity<Resource> response = clientDocumentsService.downloadFile(documentId, request);
-        assertNotNull(response);
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        // Add more assertions for content type, content disposition, etc.
+        // Assert
+        assertNotNull(response)
+        assertEquals(HttpStatus.OK, response.statusCode)
+        assertNotNull(response.body)
     }
 
     @Test
-    void testLoadFileAsResource() {
-        // Mock necessary behavior for fileStorageProperties
-        when(fileStorageProperties.getUploadDir()).thenReturn("/path/to/upload/dir");
+    fun downloadFile_InvalidId_ExceptionThrown() {
+        // Arrange
+        val id: Long = 1L
+        val request = mock(HttpServletRequest::class.java)
+        mockWhen(repository.findById(id)).thenReturn(Optional.empty())
 
-        // Test loadFileAsResource method
-        String fileName = "test.txt";
-        Resource resource = clientDocumentsService.loadFileAsResource(fileName);
-        assertNotNull(resource);
-        // Add more assertions for the resource
+        // Act & Assert
+        assertThrows(MyFileNotFoundException::class.java) { clientDocumentsService.downloadFile(id, request) }
     }
 
     @Test
-    void testUpdateClientDocumentsValidity() {
-        // Mock necessary behavior for repository
-        long documentId = 1L;
-        ClientDocument clientDocument = new ClientDocument();
-        when(repository.findById(documentId)).thenReturn(Optional.of(clientDocument));
+    fun loadFileAsResource_ValidFileName_Success() {
+        // Arrange
+        val fileName = "test.txt"
+        val filePath: Path = FileSystems.getDefault().getPath(fileName)
+        Files.createFile(filePath)
+        mockWhen(fileStorageProperties.uploadDir).thenReturn(".")
+        
+        // Act
+        val resource = clientDocumentsService.loadFileAsResource(fileName)
 
-        // Test updateClientDocumentsValidity method
-        UpdateCommandDto dto = new UpdateCommandDto();
-        dto.setValidUntil(/* Set validUntil value */);
-        dto.setExpiryOnNotice(/* Set expiryOnNotice value */);
-        dto.setArchiveDocument(/* Set archiveDocument value */);
+        // Assert
+        assertNotNull(resource)
+        assertTrue(resource.exists())
 
-        clientDocumentsService.updateClientDocumentsValidity(documentId, dto);
-
-        // Add assertions to check if the documentValidity was updated correctly
-        verify(repository, times(1)).save(clientDocument);
+        // Clean up
+        Files.deleteIfExists(filePath)
     }
 
     @Test
-    void testGetClientDocumentsCount() {
-        // Mock necessary behavior for repository
-        long clientId = 1L;
-        List<ClientDocument> documents = Collections.singletonList(/* Create a mock ClientDocument */);
-        when(repository.findByClientId(clientId)).thenReturn(documents);
+    fun loadFileAsResource_InvalidFileName_ExceptionThrown() {
+        // Arrange
+        val fileName = "invalid.txt"
 
-        // Mock necessary behavior for masterServiceClient
-        List<MasterDto> documentTypes = Collections.singletonList(/* Create a mock MasterDto */);
-        when(masterServiceClient.getAllDocumentTypes()).thenReturn(documentTypes);
-
-        // Test getClientDocumentsCount method
-        List<DocumentCountDto> counts = clientDocumentsService.getClientDocumentsCount(clientId);
-        assertNotNull(counts);
-        // Add more assertions for counts and document types
+        // Act & Assert
+        assertThrows(MyFileNotFoundException::class.java) { clientDocumentsService.loadFileAsResource(fileName) }
     }
 
     @Test
-    void testGetClientDocuments() {
-        // Mock necessary behavior for repository
-        long clientId = 1L;
-        long documentTypeId = 2L;
-        List<ClientDocument> documents = Collections.singletonList(/* Create a mock ClientDocument */);
-        when(repository.findAllByClientIdAndDocumentTypeId(clientId, documentTypeId)).thenReturn(documents);
+    fun updateClientDocumentsValidity_ValidId_ValidDto_Success() {
+        // Arrange
+        val id: Long = 1L
+        val dto = UpdateCommandDto()
+        dto.validUntil = LocalDate.now()
+        dto.expiryOnNotice = false
+        dto.archiveDocument = true
+        val document = ClientDocument()
+        mockWhen(repository.findById(id)).thenReturn(Optional.of(document))
 
-        // Test getClientDocuments method
-        List<ClientDocumentsQueryDto> queryDtos = clientDocumentsService.getClientDocuments(clientId, documentTypeId);
-        assertNotNull(queryDtos);
-        // Add more assertions for queryDtos
+        // Act
+        clientDocumentsService.updateClientDocumentsValidity(id, dto)
+
+        // Assert
+        assertNotNull(document.validUntil)
+        assertEquals(dto.validUntil, document.validUntil)
+        assertEquals(dto.expiryOnNotice, document.expiryOnNotice)
+        assertEquals(dto.archiveDocument, document.archiveDocument)
     }
 
     @Test
-    void testCreateClientDocument() {
-        // Mock necessary behavior for repository
-        when(repository.save(any())).thenReturn(/* Create a mock ClientDocument */);
+    fun updateClientDocumentsValidity_InvalidId_ExceptionThrown() {
+        // Arrange
+        val id: Long = 1L
+        val dto = UpdateCommandDto()
+        dto.validUntil = LocalDate.now()
 
-        // Test createClientDocument method
-        String fileName = "test.txt";
-        ClientDocumentsCommandDto commandDto = new ClientDocumentsCommandDto();
-        clientDocumentsService.createClientDocument(fileName, commandDto);
-
-        // Add assertions to verify the behavior of repository.save()
-        verify(repository, times(1)).save(any());
+        // Act & Assert
+        assertThrows(NoSuchElementException::class.java) { clientDocumentsService.updateClientDocumentsValidity(id, dto) }
     }
+
+    // Add more test cases for the remaining methods if needed
+
 }
