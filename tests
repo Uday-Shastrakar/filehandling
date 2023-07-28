@@ -1,0 +1,136 @@
+class ClientDocumentsServiceTest {
+
+    @InjectMocks
+    private ClientDocumentsService clientDocumentsService;
+
+    @Mock
+    private FileStorageProperties fileStorageProperties;
+
+    @Mock
+    private ClientDocuementRepository repository;
+
+    @Mock
+    private MasterServiceClient masterServiceClient;
+
+    @Mock
+    private HttpServletRequest request;
+
+    @Mock
+    private MultipartFile multipartFile;
+
+    @BeforeEach
+    void setUp() {
+        MockitoAnnotations.initMocks(this);
+        // Mock any necessary behaviors for fileStorageProperties, repository, masterServiceClient, and request
+    }
+
+    @Test
+    void testStoreFile() {
+        // Mock necessary behavior for fileStorageProperties
+        when(fileStorageProperties.getUploadDir()).thenReturn("/path/to/upload/dir");
+
+        // Mock necessary behavior for MultipartFile
+        when(multipartFile.getOriginalFilename()).thenReturn("test.txt");
+        when(multipartFile.getInputStream()).thenReturn(/* Provide an InputStream for test file content */);
+
+        // Test storeFile method
+        String fileName = clientDocumentsService.storeFile(multipartFile);
+        assertNotNull(fileName);
+        assertEquals("test.txt", fileName);
+    }
+
+    @Test
+    void testDownloadFile() {
+        // Mock necessary behavior for repository
+        long documentId = 1L;
+        ClientDocument clientDocument = new ClientDocument();
+        clientDocument.setFileName("test.txt");
+        when(repository.findById(documentId)).thenReturn(Optional.of(clientDocument));
+
+        // Mock necessary behavior for LoadFileAsResource
+        Resource resource = /* Create a mock Resource */;
+        when(clientDocumentsService.loadFileAsResource(clientDocument.getFileName())).thenReturn(resource);
+
+        // Test downloadFile method
+        ResponseEntity<Resource> response = clientDocumentsService.downloadFile(documentId, request);
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        // Add more assertions for content type, content disposition, etc.
+    }
+
+    @Test
+    void testLoadFileAsResource() {
+        // Mock necessary behavior for fileStorageProperties
+        when(fileStorageProperties.getUploadDir()).thenReturn("/path/to/upload/dir");
+
+        // Test loadFileAsResource method
+        String fileName = "test.txt";
+        Resource resource = clientDocumentsService.loadFileAsResource(fileName);
+        assertNotNull(resource);
+        // Add more assertions for the resource
+    }
+
+    @Test
+    void testUpdateClientDocumentsValidity() {
+        // Mock necessary behavior for repository
+        long documentId = 1L;
+        ClientDocument clientDocument = new ClientDocument();
+        when(repository.findById(documentId)).thenReturn(Optional.of(clientDocument));
+
+        // Test updateClientDocumentsValidity method
+        UpdateCommandDto dto = new UpdateCommandDto();
+        dto.setValidUntil(/* Set validUntil value */);
+        dto.setExpiryOnNotice(/* Set expiryOnNotice value */);
+        dto.setArchiveDocument(/* Set archiveDocument value */);
+
+        clientDocumentsService.updateClientDocumentsValidity(documentId, dto);
+
+        // Add assertions to check if the documentValidity was updated correctly
+        verify(repository, times(1)).save(clientDocument);
+    }
+
+    @Test
+    void testGetClientDocumentsCount() {
+        // Mock necessary behavior for repository
+        long clientId = 1L;
+        List<ClientDocument> documents = Collections.singletonList(/* Create a mock ClientDocument */);
+        when(repository.findByClientId(clientId)).thenReturn(documents);
+
+        // Mock necessary behavior for masterServiceClient
+        List<MasterDto> documentTypes = Collections.singletonList(/* Create a mock MasterDto */);
+        when(masterServiceClient.getAllDocumentTypes()).thenReturn(documentTypes);
+
+        // Test getClientDocumentsCount method
+        List<DocumentCountDto> counts = clientDocumentsService.getClientDocumentsCount(clientId);
+        assertNotNull(counts);
+        // Add more assertions for counts and document types
+    }
+
+    @Test
+    void testGetClientDocuments() {
+        // Mock necessary behavior for repository
+        long clientId = 1L;
+        long documentTypeId = 2L;
+        List<ClientDocument> documents = Collections.singletonList(/* Create a mock ClientDocument */);
+        when(repository.findAllByClientIdAndDocumentTypeId(clientId, documentTypeId)).thenReturn(documents);
+
+        // Test getClientDocuments method
+        List<ClientDocumentsQueryDto> queryDtos = clientDocumentsService.getClientDocuments(clientId, documentTypeId);
+        assertNotNull(queryDtos);
+        // Add more assertions for queryDtos
+    }
+
+    @Test
+    void testCreateClientDocument() {
+        // Mock necessary behavior for repository
+        when(repository.save(any())).thenReturn(/* Create a mock ClientDocument */);
+
+        // Test createClientDocument method
+        String fileName = "test.txt";
+        ClientDocumentsCommandDto commandDto = new ClientDocumentsCommandDto();
+        clientDocumentsService.createClientDocument(fileName, commandDto);
+
+        // Add assertions to verify the behavior of repository.save()
+        verify(repository, times(1)).save(any());
+    }
+}
